@@ -1,0 +1,47 @@
+if OBJECT_ID('tempdb..#ms') is not null
+begin 
+Drop table #ms
+end; 
+if OBJECT_ID('tempdb..#fcs') is not null 
+begin 
+drop table #fcs
+end; 
+if OBJECT_ID('tempdb..#time_D') is not null 
+begin
+drop table #time_D
+end ; 
+--------------------------------------------------
+ SELECT   rs.rai_code
+   	  ,round(duration,0) duration
+      ,[Indication]
+	  ,[Start_Time_UTC]
+      ,dateadd(second,3,[Start_Time_UTC]) dd
+      ,[end_time_UTC]
+      ,[Player_Start_Time]
+      ,[Player_End_Time]
+    into #ms
+  FROM [DEV].[dbo].[vw_MS_Reult] ms 
+  inner join [DEV].[dbo].rai_source rs 
+  on ms.StreamID = rs.station_cr_id collate SQL_Latin1_General_CP1_CI_AI
+  where probability > 50.0 and duration >3.0 ;
+--------------------------------------------------
+ select  duration, id,lead(id) over(order by id)nextid,timestamputc,lead(timestamputc) over(order by id) nextitme
+into #fcs
+from final_cuesheet;
+----------------------------------------------
+ select ms.duration mDuration ,fcs.duration fDuration,fcs.id, nextid,timestamputc, nextitme,DATEADD(second,ms.duration,TimeStampUtc) newEnd,
+  datediff(second,DATEADD(second,ms.duration,TimeStampUtc),nextitme) diffNextDur, datediff(second,timestamputc,dateadd(second,-1,nextitme))  diffNewPossibleTime
+  into #time_D
+  from   #fcs fcs inner join 
+  #ms ms on   ms.start_time_UTC between DATEADD(second,-5,TimeStampUtc) and  DATEADD(second,5,TimeStampUtc) 
+
+  where ms.duration > fcs.duration
+--------------------------------------------------
+  Select case when diffNextDur >0 then mDuration 
+			when diffNextDur < 0 and fduration > diffNewPossibleTime then fduration  
+			when nextitme is null then fDuration
+  else  diffNewPossibleTime end extendedTime, *
+  from final_cuesheet fc
+ 
+  inner join  #time_D D   on fc.id = d.id  
+  where fc.actualduration is null 
